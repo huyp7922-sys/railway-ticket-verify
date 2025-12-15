@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kiểm tra vé tàu</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        background: #f2f2f2;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 24px;
+        max-width: 500px;
+        width: 100%;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .logo {
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .status {
+        text-align: center;
+        padding: 20px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        border: 1px solid #ccc;
+      }
+
+      .status.valid {
+        background: #e6f4ea;
+        border-color: #9ccc9c;
+      }
+
+      .status.invalid {
+        background: #fdecea;
+        border-color: #e0a4a4;
+      }
+
+      .status.expired {
+        background: #fff4e5;
+        border-color: #e0c28c;
+      }
+
+      .status.used {
+        background: #f0f0f0;
+        border-color: #bdbdbd;
+      }
+
+      .status-text {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 6px;
+      }
+
+      .status-detail {
+        font-size: 14px;
+        color: #333;
+      }
+
+      .info-box {
+        background: #fafafa;
+        border-radius: 4px;
+        padding: 16px;
+        border: 1px solid #ddd;
+      }
+
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #ddd;
+        font-size: 14px;
+      }
+
+      .info-row:last-child {
+        border-bottom: none;
+      }
+
+      .info-label {
+        font-weight: 600;
+        color: #555;
+      }
+
+      .info-value {
+        color: #222;
+        text-align: right;
+      }
+
+      .countdown {
+        text-align: center;
+        padding: 16px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        margin-top: 16px;
+        border: 1px solid #ddd;
+      }
+
+      .countdown-label {
+        font-size: 13px;
+        margin-bottom: 6px;
+        color: #555;
+      }
+
+      .countdown-time {
+        font-size: 22px;
+        font-weight: bold;
+        font-family: monospace;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 40px 20px;
+      }
+
+      .loading-text {
+        font-size: 14px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">VÉ TÀU ĐIỆN TỬ</div>
+
+      <div id="loading" class="loading">
+        <div class="loading-text">Đang kiểm tra vé...</div>
+      </div>
+
+      <div id="result" style="display: none"></div>
+    </div>
+
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      const data = urlParams.get("data");
+
+      if (!data) {
+        displayError("Mã QR không hợp lệ");
+      } else {
+        try {
+          const decoded = atob(data);
+          const ticketInfo = JSON.parse(decoded);
+          setTimeout(() => verifyTicket(ticketInfo), 500);
+        } catch {
+          displayError("Không thể đọc thông tin vé");
+        }
+      }
+
+      function verifyTicket(ticket) {
+        const now = new Date();
+        const departureTime = new Date(ticket.ngayGioKhoiHanh);
+        const expireTime = new Date(ticket.expireTime);
+
+        const expired = now > expireTime;
+        const used = ticket.used === true;
+        const valid = ticket.trangThai === "DaBan";
+
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("result").style.display = "block";
+
+        const resultDiv = document.getElementById("result");
+
+        if (valid && !expired && !used) {
+          resultDiv.innerHTML = `
+                <div class="status valid">
+                    <div class="status-text">VÉ HỢP LỆ</div>
+                    <div class="status-detail">Vé có thể sử dụng để lên tàu</div>
+                </div>
+
+                <div class="info-box">
+                    <div class="info-row"><span class="info-label">Mã vé</span><span class="info-value">${
+                      ticket.maVe
+                    }</span></div>
+                    <div class="info-row"><span class="info-label">Hành khách</span><span class="info-value">${
+                      ticket.tenKhachHang
+                    }</span></div>
+                    <div class="info-row"><span class="info-label">Tuyến</span><span class="info-value">${
+                      ticket.gaDi
+                    } → ${ticket.gaDen}</span></div>
+                    <div class="info-row"><span class="info-label">Giờ khởi hành</span><span class="info-value">${formatDateTime(
+                      departureTime
+                    )}</span></div>
+                    <div class="info-row"><span class="info-label">Toa - Ghế</span><span class="info-value">Toa ${
+                      ticket.toa
+                    } - Ghế ${ticket.ghe}</span></div>
+                    <div class="info-row"><span class="info-label">Loại vé</span><span class="info-value">${
+                      ticket.loaiVe
+                    }</span></div>
+                </div>
+
+                ${createCountdown(departureTime)}
+            `;
+        } else if (expired) {
+          resultDiv.innerHTML = `
+                <div class="status expired">
+                    <div class="status-text">VÉ ĐÃ HẾT HẠN</div>
+                    <div class="status-detail">Chuyến tàu đã khởi hành</div>
+                </div>
+            `;
+        } else if (used) {
+          resultDiv.innerHTML = `
+                <div class="status used">
+                    <div class="status-text">VÉ ĐÃ SỬ DỤNG</div>
+                    <div class="status-detail">Vé đã được check-in</div>
+                </div>
+            `;
+        } else {
+          displayError("Vé không hợp lệ");
+        }
+      }
+
+      function createCountdown(departureTime) {
+        const diff = departureTime - new Date();
+        if (diff <= 0) return "";
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        return `
+            <div class="countdown">
+                <div class="countdown-label">Thời gian còn lại</div>
+                <div class="countdown-time">${hours}h ${minutes}m</div>
+            </div>
+        `;
+      }
+
+      function formatDateTime(date) {
+        return date.toLocaleString("vi-VN");
+      }
+
+      function displayError(message) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("result").style.display = "block";
+        document.getElementById("result").innerHTML = `
+            <div class="status invalid">
+                <div class="status-text">LỖI</div>
+                <div class="status-detail">${message}</div>
+            </div>
+        `;
+      }
+    </script>
+  </body>
+</html>
